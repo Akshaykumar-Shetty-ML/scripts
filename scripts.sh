@@ -1,4 +1,5 @@
 #!/bin/bash
+
 echo '{
 "vpc": "",
 "account_type": "azure",
@@ -8,24 +9,24 @@ echo '{
 "access_key_id": "",
 "secret_key": ""
 },
-"region": "$1",
+"region": "'$1'",
 "iamrole": ""
 }
 ' > /opt/server.init
 echo '{
 "esinstances": {
-"$2": "$3",
-"$4": "$5",
-"$6": "$7"
+"'$2'": "'$3'",
+"'$4'": "'$5'",
+"'$6'": "'$7'"
 },
-"eselb": "$8"
+"eselb": "'$8'"
 }
 ' > /opt/es.json
 echo '{
-"endpoint": "$9",
+"endpoint": "'$9'",
 "db": "snappyflow",
-"username": "$10",
-"password": "$11"
+"username": "'$10'",
+"password": "'$11'"
 }
 ' > /opt/rds.json
 export PUBLIC_IP=`curl --silent http://169.254.169.254/latest/meta-data/public-ipv4`

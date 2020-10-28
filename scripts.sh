@@ -33,17 +33,22 @@ export PUBLIC_IP=`curl --silent http://169.254.169.254/latest/meta-data/public-i
 sed -i "s/publicIP/$PUBLIC_IP/g" /opt/server.init
 echo "df -Th" >> /opt/resize.log
 df -Th >> /opt/resize.log
-echo "lsblk" >> /opt/resize.log
-lsblk >> /opt/resize.log
-echo "growpart /dev/nvme0n1 2" >> /opt/resize.log
-growpart /dev/nvme0n1 2 >> /opt/resize.log
-echo "lsblk" >> /opt/resize.log
-lsblk >> /opt/resize.log
-echo "pvresize /dev/nvme0n1p2" >> /opt/resize.log
-pvresize /dev/nvme0n1p2 >> /opt/resize.log
-echo "lvextend -l +100%FREE /dev/mapper/centos-root" >> /opt/resize.log
-lvextend -l +100%FREE /dev/mapper/centos-root >> /opt/resize.log
-echo "xfs_growfs /dev/centos/root" >> /opt/resize.log
-xfs_growfs /dev/centos/root >> /opt/resize.log
+(
+echo n # Add a new partition
+echo p # Primary partition
+echo 1 # Partition number
+echo   # First sector (Accept default: 1)
+echo   # Last sector (Accept default: varies)
+echo w # Write changes
+) | sudo fdisk /dev/sdc >> /opt/resize.log
+
+sudo partprobe
+
+pvcreate /dev/sdc1 >> /opt/resize.log
+
+value=$(vgs --noheadings -o vg_name | tr -d '  ')
+vgextend $value /dev/sdc1 >> /opt/resize.log
+
+lvextend -l+100%FREE --resizefs /dev/$value/root >> /opt/resize.log
 echo "df -Th" >> /opt/resize.log
 df -Th >> /opt/resize.log

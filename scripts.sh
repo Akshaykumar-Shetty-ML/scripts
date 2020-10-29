@@ -25,8 +25,8 @@ echo '{
 echo '{
 "endpoint": "'$9'",
 "db": "snappyflow",
-"username": "'$10'",
-"password": "'$11'"
+"username": "'${10}'",
+"password": "'${11}'"
 }
 ' > /opt/rds.json
 export PUBLIC_IP=`curl --silent http://169.254.169.254/latest/meta-data/public-ipv4`

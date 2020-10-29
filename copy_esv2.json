@@ -1,0 +1,640 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "Deployment": {
+          "type": "string",
+          "defaultValue": "Medium",
+          "allowedValues": [
+            "Small",
+            "Medium",
+            "Large"
+          ]
+        },
+        "DatabaseType": {
+          "type": "string",
+          "allowedValues": [
+            "RDS",
+            "local"
+          ]
+        },
+        "adminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "Username for the Virtual Machine."
+            }
+        },
+        "authenticationType": {
+            "type": "string",
+            "defaultValue": "password",
+            "allowedValues": [
+                "sshPublicKey",
+                "password"
+            ],
+            "metadata": {
+                "description": "Type of authentication to use on the Virtual Machine. SSH key is recommended."
+            }
+        },
+        "adminPasswordOrKey": {
+            "type": "securestring",
+            "metadata": {
+                "description": "SSH Key or password for the Virtual Machine. SSH key is recommended."
+            }
+        }
+    },
+    "variables": {
+        "nicNamePrefix": "snappyflowesnic",
+        "vmNamePrefix": "snappyflowesvm",
+        "regionimages":{
+            "westus": {
+                "apmimage": "",
+                "esimage": ""
+            },
+            "eastus": {
+                "apmimage": "/subscriptions/5620666d-b5f1-4672-b6ec-b53cd899ffd6/resourceGroups/CLOUD-SHELL-STORAGE-EASTUS/providers/Microsoft.Compute/disks/controller-installer_disk1_871c6c3c7a7f463cb99196e017314063",
+                "esimage": "/subscriptions/5620666d-b5f1-4672-b6ec-b53cd899ffd6/resourceGroups/cloud-shell-storage-eastus/providers/Microsoft.Compute/disks/esinstance_OsDisk_1_a13e584e2c2c4dd98e7c0d93af78ddaf"
+            }
+        },
+
+        "deploymentType": {
+        "Small": {
+            "apmInstanceType": "Standard_DS3_v2",
+            "esInstanceType": "Standard_DS3_v2",
+            "apmDiskSize": 36,
+            "esDiskSize": 256
+        },
+        "Medium": {
+            "apmInstanceType": "Standard_DS4_v2",
+            "esInstanceType": "Standard_DS4_v2",
+            "apmDiskSize": 64,
+            "esDiskSize": 512
+        },
+        "Large": {
+            "apmInstanceType": "Standard_DS5_v2",
+            "esInstanceType": "Standard_DS5_v2",
+            "apmDiskSize": 128,
+            "esDiskSize": 1024
+        }
+      },
+        "lbName": "snappyflow",
+        "storageAccountType": "Standard_LRS",
+        "availabilitySetName": "myAvSet",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet-1",
+        "subnetPrefix": "10.0.0.0/24",
+        "publicIPAddressType": "Dynamic",
+        "numberOfInstances": 3,
+        "disks_externalid": "/subscriptions/5620666d-b5f1-4672-b6ec-b53cd899ffd6/resourceGroups/CLOUD-SHELL-STORAGE-EASTUS/providers/Microsoft.Compute/disks/controller-installer_disk1_871c6c3c7a7f463cb99196e017314063",
+        "dnsLabelPrefix": "[concat('vm', uniqueString(resourceGroup().id))]",
+        "dnsLabelPrefixvm": "[concat('snappyflowvm', uniqueString(resourceGroup().id))]",
+        "vmName": "['snappyflowserver']",
+        "databaseName": "['snappyflow']",
+        "serverName": "[concat('snappyflow', 'pgserver')]",
+        "hostingPlanName": "[concat('snappyflow', 'serviceplan')]",
+        "location": "[resourceGroup().location]",
+        "databaseskuFamily": "['Gen5']",
+        "postgresqlVersion": "['9.6']",
+        "databaseSkuTier": "['GeneralPurpose']",
+        "databaseSkuSizeMB": "[51200]",
+        "databaseSkuName": "['GP_Gen5_2']",
+        "databaseSkuCapacity": "[2]",
+        "empty": "",
+        "administratorLoginPassword": "[if(equals(parameters('DatabaseType'),'RDS'), 'Maplelabs123456', variables('empty'))]",
+        "administratorLogin": "[if(equals(parameters('DatabaseType'),'RDS'), 'snappyflow', variables('empty'))]",
+        "siteName": "snappyflow",
+        "storageAccountName": "[concat('diags', uniquestring(resourceGroup().id))]",
+        "imageName": "['sfimage']",
+        "esimageName": "['esimage']",
+        "nicName": "apmnic",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet",
+        "subnetPrefix": "10.0.0.0/24",
+        "publicIPAddressName": "espublic",
+        "publicIPAddressID": "[resourceId('Microsoft.Network/publicIPAddresses', 'espublic')]",
+        "publicIPAddressNamevm": "apmpublic",
+        "virtualNetworkName": "apmvnet",
+        "subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'apmvnet', variables ('subnetName'))]",
+        "networkSecurityGroupName": "apmnsg",
+        "subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnetName'))]",
+        "linuxConfiguration": {
+            "disablePasswordAuthentication": true,
+            "ssh": {
+                "publicKeys": [
+                    {
+                        "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+                        "keyData": "[parameters('adminPasswordOrKey')]"
+                    }
+                ]
+            }
+        },
+        "es1": "[concat(variables('vmNamePrefix'), 0)]",
+        "es2": "[concat(variables('vmNamePrefix'), 1)]",
+        "es3": "[concat(variables('vmNamePrefix'), 2)]",
+        "es1nic": "[concat(variables('nicNamePrefix'), 0)]",
+        "es2nic": "[concat(variables('nicNamePrefix'), 1)]",
+        "es3nic": "[concat(variables('nicNamePrefix'), 2)]",
+        "rdsserver": "[if(equals(parameters('DatabaseType'),'RDS'), reference(resourceId('Microsoft.DBforPostgreSQL/servers',variables('serverName')), '2020-06-01').fullyQualifiedDomainName, variables('empty'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[variables('storageAccountName')]",
+            "apiVersion": "2019-06-01",
+            "location": "[variables('location')]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "Storage",
+            "properties": {
+            }
+        },
+        {
+            "type": "Microsoft.Compute/images",
+            "apiVersion": "2019-07-01",
+            "name": "[variables('esimageName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "storageProfile": {
+                    "osDisk": {
+                        "osType": "Linux",
+                        "osState": "Generalized",
+                        "caching": "ReadWrite",
+                        "storageAccountType": "Premium_LRS",
+                        "managedDisk": {
+                            "id": "[variables('regionimages')[resourceGroup().location].esimage]"
+                        }
+                    },
+                    "dataDisks": []
+                },
+                "hyperVGeneration": "V1"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/images",
+            "apiVersion": "2019-07-01",
+            "name": "[variables('imageName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "storageProfile": {
+                    "osDisk": {
+                        "osType": "Linux",
+                        "osState": "Generalized",
+                        "caching": "ReadWrite",
+                        "storageAccountType": "Premium_LRS",
+                        "managedDisk": {
+                            "id": "[variables('regionimages')[resourceGroup().location].apmimage]"
+                        }
+                    },
+                    "dataDisks": []
+                },
+                "hyperVGeneration": "V1"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/availabilitySets",
+            "apiVersion": "2019-12-01",
+            "name": "[variables('availabilitySetName')]",
+            "location": "[variables('location')]",
+            "sku": {
+                "name": "Aligned"
+            },
+            "properties": {
+                "platformFaultDomainCount": 2,
+                "platformUpdateDomainCount": 5
+            }
+        },
+        {
+            "apiVersion": "2020-03-01",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('publicIPAddressName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "publicIPAllocationMethod": "Static",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('dnsLabelPrefix')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2020-03-01",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('publicIPAddressNamevm')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "publicIPAllocationMethod": "Static",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('dnsLabelPrefixvm')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2020-03-01",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('networkSecurityGroupName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "RemoteConnection",
+                        "properties": {
+                            "description": "Allow RDP/SSH",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "RemoteConnectiones",
+                        "properties": {
+                            "description": "Allow RDP",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "9200",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 101,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2020-03-01",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2020-05-01",
+            "name": "[concat(variables('nicNamePrefix'), copyindex())]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+                "[resourceId('Microsoft.Network/loadBalancers/', variables('lbName'))]",
+                "[variables('networkSecurityGroupName')]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+                            },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            },
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('lbName'), 'BackendPool1')]"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "copy": {
+                "name": "nicLoop",
+                "count": "[variables('numberOfInstances')]"
+            }
+        },
+        {
+            "apiVersion": "2020-03-01",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('nicName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[variables('publicIPAddressNamevm')]",
+                "[variables('virtualNetworkName')]",
+                "[variables('networkSecurityGroupName')]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressNamevm'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2019-12-01",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('vmName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[variables('storageAccountName')]",
+                "[variables('nicName')]",
+                "[variables('imageName')]"    
+            ],
+            "resources": [
+                    {
+                        "name": "config-app",
+                        "type": "extensions",
+                        "location": "[resourceGroup().location]",
+                        "apiVersion": "2019-03-01",
+                        "dependsOn": [
+                            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+                        ],
+                        "tags": {
+                            "displayName": "config-app"
+                        },
+                        "properties": {
+                            "publisher": "Microsoft.Azure.Extensions",
+                            "type": "CustomScript",
+                            "typeHandlerVersion": "2.1",
+                            "autoUpgradeMinorVersion": true,
+                            "settings": {
+                                "fileUris": [
+                                    "https://raw.githubusercontent.com/theakshashetty/scripts/master/scripts.sh"
+                                ]
+                            },
+                            "protectedSettings": {
+                                "commandToExecute": "[concat('./scripts.sh ', ' ', variables('location'), ' ', variables('es1'), ' ', reference(variables('es1nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es2'), ' ', reference(variables('es2nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es3'), ' ', reference(variables('es3nic')).ipConfigurations[0].properties.privateIPAddress, ' ', reference(variables('publicIPAddressName')).dnsSettings.fqdn, ' ', variables('rdsserver'), ' ', variables('administratorLogin'),'@', variables('serverName'), ' ', variables('administratorLoginPassword'))]"
+                            }
+                        }
+                    }
+                ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('deploymentType')[parameters('Deployment')].apmInstanceType]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPasswordOrKey')]",
+                    "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), json('null'), variables('linuxConfiguration'))]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "id": "[resourceId('Microsoft.Compute/images', variables('imageName'))]"
+                    },
+                    "dataDisks": [
+                    {
+                        "diskSizeGB": "[variables('deploymentType')[parameters('Deployment')].apmDiskSize]",
+                        "lun": 0,
+                        "createOption": "Empty"
+                    }
+                    ]
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true,
+                        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+        {
+            "condition": "[equals(parameters('DatabaseType'),'RDS')]",
+            "apiVersion": "2018-11-01",
+            "name": "[variables('hostingPlanName')]",
+            "type": "Microsoft.Web/serverfarms",
+            "location": "[variables('location')]",
+            "properties": {
+                "name": "[variables('hostingPlanName')]",
+                "workerSize": "1",
+                "numberOfWorkers": 0
+            },
+            "sku": {
+                "Tier": "Standard",
+                "Name": "S1"
+            }
+        },
+        {
+            "condition": "[equals(parameters('DatabaseType'),'RDS')]",
+            "apiVersion": "2018-11-01",
+            "name": "[variables('siteName')]",
+            "type": "Microsoft.Web/sites",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Web/serverfarms/', variables('hostingPlanName'))]"
+            ],
+            "properties": {
+                "name": "[variables('siteName')]",
+                "serverFarmId": "[variables('hostingPlanName')]"
+                },
+            "resources": [
+                {
+                    "condition": "[equals(parameters('DatabaseType'),'RDS')]",
+                    "apiVersion": "2018-11-01",
+                    "name": "connectionstrings",
+                    "type": "config",
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', variables('siteName'))]"
+                    ],
+                    "properties": {
+                        "defaultConnection": {
+                            "value": "[concat('Database=', variables('databaseName'), ';Server=', reference(resourceId('Microsoft.DBforPostgreSQL/servers',variables('serverName')), '2020-06-01').fullyQualifiedDomainName, ';User Id=', variables('administratorLogin'),'@', variables('serverName'),';Password=', variables('administratorLoginPassword'))]",
+                            "type": "PostgreSQL"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "condition": "[equals(parameters('DatabaseType'),'RDS')]",
+            "apiVersion": "2017-12-01",
+            "type": "Microsoft.DBforPostgreSQL/servers",
+            "location": "[variables('location')]",
+            "name": "[variables('serverName')]",
+            "sku": {
+                "name": "[variables('databaseSkuName')]",
+                "tier": "[variables('databaseSkuTier')]",
+                "capacity": "[variables('databaseSkuCapacity')]",
+                "size": "[variables('databaseSkuSizeMB')]",
+                "family": "[variables('databaseskuFamily')]"
+            },
+            "properties": {
+                "version": "[variables('postgresqlVersion')]",
+                "administratorLogin": "[variables('administratorLogin')]",
+                "administratorLoginPassword": "[variables('administratorLoginPassword')]",
+                "storageMB": "[variables('databaseSkuSizeMB')]",
+                "sslEnforcement": "['Disabled']"
+            },
+            "resources": [
+                {
+                    "condition": "[equals(parameters('DatabaseType'),'RDS')]",
+                    "type": "firewallrules",
+                    "apiVersion": "2017-12-01",
+                    "dependsOn": [
+                        "[concat('Microsoft.DBforPostgreSQL/servers/', variables('serverName'))]"
+                    ],
+                    "location": "[variables('location')]",
+                    "name": "[concat(variables('serverName'),'firewall')]",
+                    "properties": {
+                        "startIpAddress": "0.0.0.0",
+                        "endIpAddress": "255.255.255.255"
+                    }
+                },
+                {
+                    "condition": "[equals(parameters('DatabaseType'),'RDS')]",
+                    "name": "[variables('databaseName')]",
+                    "type": "databases",
+                    "apiVersion": "2017-12-01",
+                    "properties": {
+                        "charset": "utf8",
+                        "collation": "English_United States.1252"
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.DBforPostgreSQL/servers/', variables('serverName'))]"
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.Network/loadBalancers",
+            "apiVersion": "2020-05-01",
+            "name": "[variables('lbName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]"
+            ],
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "LoadBalancerFrontEnd",
+                        "properties": {
+                            "publicIPAddress": {
+                                "id": "[variables('publicIPAddressID')]"
+                            }
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "BackendPool1"
+                    }
+                ],
+                "loadBalancingRules": [
+                    {
+                        "name": "LBRule",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[resourceId('Microsoft.Network/loadBalancers/frontendIPConfigurations', variables('lbName'), 'LoadBalancerFrontEnd')]"
+                            },
+                            "backendAddressPool": {
+                                "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('lbName'), 'BackendPool1')]"
+                            },
+                            "protocol": "Tcp",
+                            "frontendPort": 9200,
+                            "backendPort": 9200,
+                            "enableFloatingIP": false,
+                            "idleTimeoutInMinutes": 5,
+                            "probe": {
+                                "id": "[resourceId('Microsoft.Network/loadBalancers/probes', variables('lbName'), 'tcpProbe')]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [
+                    {
+                        "name": "tcpProbe",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "port": 9200,
+                            "intervalInSeconds": 5,
+                            "numberOfProbes": 2
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2019-12-01",
+            "name": "[concat(variables('vmNamePrefix'), copyindex())]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[variables('esimageName')]",
+                "[resourceId('Microsoft.Network/networkInterfaces/', concat(variables('nicNamePrefix'), copyindex()))]",
+                "[resourceId('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]"
+            ],
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availabilitySetName'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[variables('deploymentType')[parameters('Deployment')].esInstanceType]"
+                },
+                "osProfile": {
+                    "computerName": "[concat(variables('vmNamePrefix'), copyIndex())]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPasswordOrKey')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "id": "[resourceId('Microsoft.Compute/images', variables('esimageName'))]"
+                    },
+                    "dataDisks": [
+                        {
+                            "diskSizeGB": "[variables('deploymentType')[parameters('Deployment')].esDiskSize]",
+                            "lun": 0,
+                            "createOption": "Empty"
+                        }
+                    ]
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('nicNamePrefix'),copyindex()))]"
+                        }
+                    ]
+                }
+            },
+            "copy": {
+                "name": "virtualMachineLoop",
+                "count": "[variables('numberOfInstances')]"
+            }
+        }
+        
+    ],
+    "outputs": {
+        "hostname": {
+            "type": "string",
+            "value": "[reference(variables('publicIPAddressName')).dnsSettings.fqdn]"
+        }
+    }
+}

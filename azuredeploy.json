@@ -18,6 +18,13 @@
             "local"
           ]
         },
+        "cidrNotation": {
+          "type": "string",
+          "defaultValue": "10.0.0.0/16",
+          "metadata": {
+                "description": "CIDR range."
+            }
+        },
         "adminUsername": {
             "type": "string",
             "metadata": {
@@ -26,19 +33,18 @@
         },
         "authenticationType": {
             "type": "string",
-            "defaultValue": "password",
+            "defaultValue": "sshPublicKey",
             "allowedValues": [
-                "sshPublicKey",
-                "password"
+                "sshPublicKey"
             ],
             "metadata": {
                 "description": "Type of authentication to use on the Virtual Machine. SSH key is recommended."
             }
         },
-        "adminPasswordOrKey": {
+        "adminKey": {
             "type": "securestring",
             "metadata": {
-                "description": "SSH Key or password for the Virtual Machine. SSH key is recommended."
+                "description": "Specifies the SSH rsa public key file as a string. Use \"ssh-keygen -t rsa -b 2048\" to generate your SSH key pairs."
             }
         }
     },
@@ -51,8 +57,8 @@
                 "esimage": ""
             },
             "eastus": {
-                "apmimage": "/subscriptions/5620666d-b5f1-4672-b6ec-b53cd899ffd6/resourceGroups/CLOUD-SHELL-STORAGE-EASTUS/providers/Microsoft.Compute/disks/controller-installer_disk1_871c6c3c7a7f463cb99196e017314063",
-                "esimage": "/subscriptions/5620666d-b5f1-4672-b6ec-b53cd899ffd6/resourceGroups/cloud-shell-storage-eastus/providers/Microsoft.Compute/disks/esinstance_OsDisk_1_a13e584e2c2c4dd98e7c0d93af78ddaf"
+                "apmimage": "/subscriptions/5620666d-b5f1-4672-b6ec-b53cd899ffd6/resourceGroups/cloud-shell-storage-eastus/providers/Microsoft.Compute/images/sf-apm-19",
+                "esimage": "/subscriptions/5620666d-b5f1-4672-b6ec-b53cd899ffd6/resourceGroups/cloud-shell-storage-eastus/providers/Microsoft.Compute/images/esubuntu-image-20201030182231"
             }
         },
 
@@ -64,24 +70,22 @@
             "esDiskSize": 256
         },
         "Medium": {
-            "apmInstanceType": "Standard_DS4_v2",
-            "esInstanceType": "Standard_DS4_v2",
+            "apmInstanceType": "Standard_D8ds_v4",
+            "esInstanceType": "Standard_D8ds_v4",
             "apmDiskSize": 64,
             "esDiskSize": 512
         },
         "Large": {
-            "apmInstanceType": "Standard_DS5_v2",
-            "esInstanceType": "Standard_DS5_v2",
+            "apmInstanceType": "Standard_D16ds_v4",
+            "esInstanceType": "Standard_D16ds_v4",
             "apmDiskSize": 128,
             "esDiskSize": 1024
         }
       },
         "lbName": "snappyflow",
         "storageAccountType": "Standard_LRS",
-        "availabilitySetName": "myAvSet",
-        "addressPrefix": "10.0.0.0/16",
+        "availabilitySetName": "esAvSet",
         "subnetName": "Subnet-1",
-        "subnetPrefix": "10.0.0.0/24",
         "publicIPAddressType": "Dynamic",
         "numberOfInstances": 3,
         "disks_externalid": "/subscriptions/5620666d-b5f1-4672-b6ec-b53cd899ffd6/resourceGroups/CLOUD-SHELL-STORAGE-EASTUS/providers/Microsoft.Compute/disks/controller-installer_disk1_871c6c3c7a7f463cb99196e017314063",
@@ -105,16 +109,16 @@
         "storageAccountName": "[concat('diags', uniquestring(resourceGroup().id))]",
         "imageName": "['sfimage']",
         "esimageName": "['esimage']",
-        "nicName": "apmnic",
-        "addressPrefix": "10.0.0.0/16",
+        "nicName": "snappyflownic",
+        "addressPrefix": "[parameters('cidrNotation')]",
         "subnetName": "Subnet",
-        "subnetPrefix": "10.0.0.0/24",
+        "subnetPrefix": "[parameters('cidrNotation')]",
         "publicIPAddressName": "espublic",
         "publicIPAddressID": "[resourceId('Microsoft.Network/publicIPAddresses', 'espublic')]",
-        "publicIPAddressNamevm": "apmpublic",
-        "virtualNetworkName": "apmvnet",
+        "publicIPAddressNamevm": "snappyflowpublic",
+        "virtualNetworkName": "snappyflowvnet",
         "subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'apmvnet', variables ('subnetName'))]",
-        "networkSecurityGroupName": "apmnsg",
+        "networkSecurityGroupName": "snappyflownsg",
         "subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnetName'))]",
         "linuxConfiguration": {
             "disablePasswordAuthentication": true,
@@ -132,64 +136,9 @@
         "es3": "[concat(variables('vmNamePrefix'), 2)]",
         "es1nic": "[concat(variables('nicNamePrefix'), 0)]",
         "es2nic": "[concat(variables('nicNamePrefix'), 1)]",
-        "es3nic": "[concat(variables('nicNamePrefix'), 2)]",
-        "rdsserver": "[if(equals(parameters('DatabaseType'),'RDS'), reference(resourceId('Microsoft.DBforPostgreSQL/servers',variables('serverName')), '2020-06-01').fullyQualifiedDomainName, variables('empty'))]"
+        "es3nic": "[concat(variables('nicNamePrefix'), 2)]"
     },
     "resources": [
-        {
-            "type": "Microsoft.Storage/storageAccounts",
-            "name": "[variables('storageAccountName')]",
-            "apiVersion": "2019-06-01",
-            "location": "[variables('location')]",
-            "sku": {
-                "name": "Standard_LRS"
-            },
-            "kind": "Storage",
-            "properties": {
-            }
-        },
-        {
-            "type": "Microsoft.Compute/images",
-            "apiVersion": "2019-07-01",
-            "name": "[variables('esimageName')]",
-            "location": "[variables('location')]",
-            "properties": {
-                "storageProfile": {
-                    "osDisk": {
-                        "osType": "Linux",
-                        "osState": "Generalized",
-                        "caching": "ReadWrite",
-                        "storageAccountType": "Premium_LRS",
-                        "managedDisk": {
-                            "id": "[variables('regionimages')[resourceGroup().location].esimage]"
-                        }
-                    },
-                    "dataDisks": []
-                },
-                "hyperVGeneration": "V1"
-            }
-        },
-        {
-            "type": "Microsoft.Compute/images",
-            "apiVersion": "2019-07-01",
-            "name": "[variables('imageName')]",
-            "location": "[variables('location')]",
-            "properties": {
-                "storageProfile": {
-                    "osDisk": {
-                        "osType": "Linux",
-                        "osState": "Generalized",
-                        "caching": "ReadWrite",
-                        "storageAccountType": "Premium_LRS",
-                        "managedDisk": {
-                            "id": "[variables('regionimages')[resourceGroup().location].apmimage]"
-                        }
-                    },
-                    "dataDisks": []
-                },
-                "hyperVGeneration": "V1"
-            }
-        },
         {
             "type": "Microsoft.Compute/availabilitySets",
             "apiVersion": "2019-12-01",
@@ -240,7 +189,11 @@
                             "description": "Allow RDP/SSH",
                             "protocol": "Tcp",
                             "sourcePortRange": "*",
-                            "destinationPortRange": "22",
+                            "destinationPortRanges": [
+                                                "22",
+                                                "443",
+                                                "80"                           
+                                            ],
                             "sourceAddressPrefix": "*",
                             "destinationAddressPrefix": "*",
                             "access": "Allow",
@@ -358,9 +311,7 @@
             "name": "[variables('vmName')]",
             "location": "[variables('location')]",
             "dependsOn": [
-                "[variables('storageAccountName')]",
-                "[variables('nicName')]",
-                "[variables('imageName')]"    
+                "[variables('nicName')]"   
             ],
             "resources": [
                     {
@@ -385,7 +336,7 @@
                                 ]
                             },
                             "protectedSettings": {
-                                "commandToExecute": "[concat('./scripts.sh ', ' ', variables('location'), ' ', variables('es1'), ' ', reference(variables('es1nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es2'), ' ', reference(variables('es2nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es3'), ' ', reference(variables('es3nic')).ipConfigurations[0].properties.privateIPAddress, ' ', reference(variables('publicIPAddressName')).dnsSettings.fqdn, ' ', variables('rdsserver'), ' ', variables('administratorLogin'),'@', variables('serverName'), ' ', variables('administratorLoginPassword'))]"
+                                "commandToExecute": "[concat('./scripts.sh ', ' ', variables('location'), ' ', variables('es1'), ' ', reference(variables('es1nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es2'), ' ', reference(variables('es2nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es3'), ' ', reference(variables('es3nic')).ipConfigurations[0].properties.privateIPAddress, ' ', reference(variables('publicIPAddressName')).dnsSettings.fqdn, ' ', if(equals(parameters('DatabaseType'),'RDS'), reference(resourceId('Microsoft.DBforPostgreSQL/servers',variables('serverName')), '2017-12-01').fullyQualifiedDomainName, variables('empty')), ' ', variables('administratorLogin'),if(equals(parameters('DatabaseType'),'RDS'),'@', variables('empty')), if(equals(parameters('DatabaseType'),'RDS'), variables('serverName'), variables('empty')), ' ', variables('administratorLoginPassword'))]"
                             }
                         }
                     }
@@ -397,12 +348,11 @@
                 "osProfile": {
                     "computerName": "[variables('vmName')]",
                     "adminUsername": "[parameters('adminUsername')]",
-                    "adminPassword": "[parameters('adminPasswordOrKey')]",
-                    "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), json('null'), variables('linuxConfiguration'))]"
+                    "adminPassword": "[parameters('adminPasswordOrKey')]"
                 },
                 "storageProfile": {
                     "imageReference": {
-                        "id": "[resourceId('Microsoft.Compute/images', variables('imageName'))]"
+                        "id": "[variables('regionimages')[resourceGroup().location].apmimage]"
                     },
                     "dataDisks": [
                     {
@@ -418,12 +368,6 @@
                             "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
                         }
                     ]
-                },
-                "diagnosticsProfile": {
-                    "bootDiagnostics": {
-                        "enabled": true,
-                        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))).primaryEndpoints.blob]"
-                    }
                 }
             }
         },
@@ -467,7 +411,7 @@
                     ],
                     "properties": {
                         "defaultConnection": {
-                            "value": "[concat('Database=', variables('databaseName'), ';Server=', reference(resourceId('Microsoft.DBforPostgreSQL/servers',variables('serverName')), '2020-06-01').fullyQualifiedDomainName, ';User Id=', variables('administratorLogin'),'@', variables('serverName'),';Password=', variables('administratorLoginPassword'))]",
+                            "value": "[concat('Database=', variables('databaseName'), ';Server=', if(equals(parameters('DatabaseType'),'RDS'), reference(resourceId('Microsoft.DBforPostgreSQL/servers',variables('serverName')), '2017-12-01').fullyQualifiedDomainName, variables('empty')), ';User Id=', variables('administratorLogin'),'@', variables('serverName'),';Password=', variables('administratorLoginPassword'))]",
                             "type": "PostgreSQL"
                         }
                     }
@@ -588,10 +532,32 @@
             "name": "[concat(variables('vmNamePrefix'), copyindex())]",
             "location": "[variables('location')]",
             "dependsOn": [
-                "[variables('esimageName')]",
                 "[resourceId('Microsoft.Network/networkInterfaces/', concat(variables('nicNamePrefix'), copyindex()))]",
                 "[resourceId('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]"
             ],
+            "resources": [
+                    {
+                        "name": "config-appes",
+                        "type": "extensions",
+                        "location": "[resourceGroup().location]",
+                        "apiVersion": "2019-03-01",
+                        "dependsOn": [
+                            "[concat(variables('vmNamePrefix'), copyindex())]"
+                        ],
+                        "tags": {
+                            "displayName": "config-app"
+                        },
+                        "properties": {
+                            "publisher": "Microsoft.Azure.Extensions",
+                            "type": "CustomScript",
+                            "typeHandlerVersion": "2.1",
+                            "autoUpgradeMinorVersion": true,
+                            "settings": {
+                                "commandToExecute": "[concat('sudo sed -i s/PasswordAuthentication\\ no/PasswordAuthentication\\ yes/g /etc/ssh/sshd_config && sudo service sshd restart && export INSTANCE_ID=', concat(variables('vmNamePrefix'), copyindex()), ' ', '&& echo ubuntu:$INSTANCE_ID | sudo chpasswd')]"
+                            }
+                        }
+                    }
+                ],
             "properties": {
                 "availabilitySet": {
                     "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availabilitySetName'))]"
@@ -606,7 +572,7 @@
                 },
                 "storageProfile": {
                     "imageReference": {
-                        "id": "[resourceId('Microsoft.Compute/images', variables('esimageName'))]"
+                        "id": "[variables('regionimages')[resourceGroup().location].esimage]"
                     },
                     "dataDisks": [
                         {
@@ -635,6 +601,10 @@
         "hostname": {
             "type": "string",
             "value": "[reference(variables('publicIPAddressName')).dnsSettings.fqdn]"
+        },
+        "Snapyflow Server": {
+            "type": "string",
+            "value": "[reference(variables('publicIPAddressNamevm')).dnsSettings.fqdn]"
         }
     }
 }

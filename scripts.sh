@@ -31,8 +31,7 @@ echo '{
 ' > /opt/rds.json
 export PUBLIC_IP=`curl --silent http://169.254.169.254/latest/meta-data/public-ipv4`
 sed -i "s/publicIP/$PUBLIC_IP/g" /opt/server.init
-adduser $9
-echo ${10} >> "/home/${9}/.ssh/authorized_keys"
+echo "${10}" >> "/home/${9}/.ssh/authorized_keys"
 echo "df -Th" >> /opt/resize.log
 df -Th >> /opt/resize.log
 (

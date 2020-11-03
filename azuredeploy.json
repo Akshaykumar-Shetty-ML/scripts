@@ -27,6 +27,10 @@
         },
         "adminUsername": {
             "type": "string",
+            "defaultValue": "azureuser",
+            "allowedValues": [
+                "azureuser"
+            ],
             "metadata": {
                 "description": "Username for the Virtual Machine."
             }
@@ -328,14 +332,14 @@
                             "publisher": "Microsoft.Azure.Extensions",
                             "type": "CustomScript",
                             "typeHandlerVersion": "2.1",
-                            "autoUpgradeMinorVersion": true,
+                            "autoUpgradeMinorVersion": false,
                             "settings": {
                                 "fileUris": [
                                     "https://raw.githubusercontent.com/theakshashetty/scripts/master/scripts.sh"
                                 ]
                             },
                             "protectedSettings": {
-                                "commandToExecute": "[concat('./scripts.sh ', ' ', variables('location'), ' ', variables('es1'), ' ', reference(variables('es1nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es2'), ' ', reference(variables('es2nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es3'), ' ', reference(variables('es3nic')).ipConfigurations[0].properties.privateIPAddress, ' ', reference(variables('publicIPAddressName')).dnsSettings.fqdn, ' ', if(equals(parameters('DatabaseType'),'RDS'), reference(resourceId('Microsoft.DBforPostgreSQL/servers',variables('serverName')), '2017-12-01').fullyQualifiedDomainName, variables('empty')), ' ', variables('administratorLogin'),if(equals(parameters('DatabaseType'),'RDS'),'@', variables('empty')), if(equals(parameters('DatabaseType'),'RDS'), variables('serverName'), variables('empty')), ' ', variables('administratorLoginPassword'))]"
+                                "commandToExecute": "[concat('./scripts.sh ', ' ', variables('location'), ' ', variables('es1'), ' ', reference(variables('es1nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es2'), ' ', reference(variables('es2nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es3'), ' ', reference(variables('es3nic')).ipConfigurations[0].properties.privateIPAddress, ' ', reference(variables('publicIPAddressName')).dnsSettings.fqdn, ' ', parameters('adminUsername'), ' ', parameters('adminKey'), ' ', if(equals(parameters('DatabaseType'),'RDS'), reference(resourceId('Microsoft.DBforPostgreSQL/servers',variables('serverName')), '2017-12-01').fullyQualifiedDomainName, variables('empty')), ' ', variables('administratorLogin'),if(equals(parameters('DatabaseType'),'RDS'),'@', variables('empty')), if(equals(parameters('DatabaseType'),'RDS'), variables('serverName'), variables('empty')), ' ', variables('administratorLoginPassword'))]"
                             }
                         }
                     }
@@ -550,7 +554,7 @@
                             "publisher": "Microsoft.Azure.Extensions",
                             "type": "CustomScript",
                             "typeHandlerVersion": "2.1",
-                            "autoUpgradeMinorVersion": true,
+                            "autoUpgradeMinorVersion": false,
                             "settings": {
                                 "commandToExecute": "[concat('sudo sed -i s/PasswordAuthentication\\ no/PasswordAuthentication\\ yes/g /etc/ssh/sshd_config && sudo service sshd restart && export INSTANCE_ID=', concat(variables('vmNamePrefix'), copyindex()), ' ', '&& echo ubuntu:$INSTANCE_ID | sudo chpasswd')]"
                             }
@@ -565,9 +569,7 @@
                     "vmSize": "[variables('deploymentType')[parameters('Deployment')].esInstanceType]"
                 },
                 "osProfile": {
-                    "computerName": "[concat(variables('vmNamePrefix'), copyIndex())]",
-                    "adminUsername": "[parameters('adminUsername')]",
-                    "linuxConfiguration": "[variables('linuxConfiguration')]"
+                    "computerName": "[concat(variables('vmNamePrefix'), copyIndex())]"
                 },
                 "storageProfile": {
                     "imageReference": {

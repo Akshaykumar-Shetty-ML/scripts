@@ -23,10 +23,10 @@ echo '{
 }
 ' > /opt/es.json
 echo '{
-"endpoint": "'${12}'",
+"endpoint": "'${11}'",
 "db": "snappyflow",
-"username": "'${13}'",
-"password": "'${14}'"
+"username": "'${12}'",
+"password": "'${13}'"
 }
 ' > /opt/rds.json
 export PUBLIC_IP=`curl --silent http://169.254.169.254/latest/meta-data/public-ipv4`

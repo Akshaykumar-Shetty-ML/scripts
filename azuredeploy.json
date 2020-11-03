@@ -340,7 +340,7 @@
                                 ]
                             },
                             "protectedSettings": {
-                                "commandToExecute": "[concat('./scripts.sh ', ' ', variables('location'), ' ', variables('es1'), ' ', reference(variables('es1nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es2'), ' ', reference(variables('es2nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es3'), ' ', reference(variables('es3nic')).ipConfigurations[0].properties.privateIPAddress, ' ', reference(variables('publicIPAddressName')).dnsSettings.fqdn, ' ', parameters('adminUsername'), ' ', variables('sshkey'), ' ', if(equals(parameters('DatabaseType'),'RDS'), reference(resourceId('Microsoft.DBforPostgreSQL/servers',variables('serverName')), '2017-12-01').fullyQualifiedDomainName, variables('empty')), ' ', variables('administratorLogin'),if(equals(parameters('DatabaseType'),'RDS'),'@', variables('empty')), if(equals(parameters('DatabaseType'),'RDS'), variables('serverName'), variables('empty')), ' ', variables('administratorLoginPassword'))]"
+                                "commandToExecute": "[concat('./scripts.sh ', ' ', variables('location'), ' ', variables('es1'), ' ', reference(variables('es1nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es2'), ' ', reference(variables('es2nic')).ipConfigurations[0].properties.privateIPAddress, ' ', variables('es3'), ' ', reference(variables('es3nic')).ipConfigurations[0].properties.privateIPAddress, ' ', reference(variables('publicIPAddressName')).dnsSettings.fqdn, ' ', parameters('adminUsername'), ' ',  \"variables('sshkey')\", ' ', if(equals(parameters('DatabaseType'),'RDS'), reference(resourceId('Microsoft.DBforPostgreSQL/servers',variables('serverName')), '2017-12-01').fullyQualifiedDomainName, variables('empty')), ' ', variables('administratorLogin'),if(equals(parameters('DatabaseType'),'RDS'),'@', variables('empty')), if(equals(parameters('DatabaseType'),'RDS'), variables('serverName'), variables('empty')), ' ', variables('administratorLoginPassword'))]"
                             }
                         }
                     }
@@ -571,7 +571,8 @@
                 },
                 "osProfile": {
                     "computerName": "[concat(variables('vmNamePrefix'), copyIndex())]",
-                    "adminUsername": "[parameters('adminUsername')]"
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "linuxConfiguration": "[json('null')]"
                 },
                 "storageProfile": {
                     "imageReference": {
